@@ -1,152 +1,134 @@
-#  Package Modules
+#  ComfyUI-SANA nodes
+#
+#  A small node pack that runs NVIDIA / Efficient-Large-Model's SANA family
+#  (regular SANA and the distilled SANA-Sprint) through the diffusers pipelines.
+#
+#  Two nodes, kept idiomatic to ComfyUI:
+#    * SanaModelLoader  - loads a diffusers-format SANA folder -> SANA_MODEL
+#    * SanaGenerate     - runs the pipeline -> IMAGE
 import os
-from typing import Union, BinaryIO, Dict, List, Tuple, Optional
-import time
 
-#  ComfyUI Modules
+import numpy as np
+import torch
+
+#  ComfyUI modules
 import folder_paths
 from comfy.utils import ProgressBar
 
-#  Your Modules
-from .modules.calculator import CalculatorModel
+#  Package modules
+from .modules.sana_model import SanaModel, DTYPE_MAP
 
 
-#  Basic practice to get paths from ComfyUI
-custom_nodes_script_dir = os.path.dirname(os.path.abspath(__file__))
-custom_nodes_model_dir = os.path.join(folder_paths.models_dir, "my-custom-nodes")
-custom_nodes_output_dir = os.path.join(folder_paths.get_output_directory(), "my-custom-nodes")
+def _list_sana_models():
+    """Find diffusers-format models under every registered `diffusers` path.
+
+    A folder qualifies if it contains a model_index.json (the diffusers pipeline
+    manifest). We don't filter on class name here so any SANA variant the user
+    drops in (or symlinks from the HF cache) shows up automatically.
+    """
+    found = []
+    for base in folder_paths.get_folder_paths("diffusers"):
+        if not os.path.isdir(base):
+            continue
+        for name in sorted(os.listdir(base)):
+            path = os.path.join(base, name)
+            if os.path.isfile(os.path.join(path, "model_index.json")):
+                found.append(name)
+    return found
 
 
-#  These are example nodes that only contains basic functionalities with some comments.
-#  If you need detailed explanation, please refer to : https://docs.comfy.org/essentials/custom_node_walkthrough
-#  First Node:
-class MyModelLoader:
-    #  Define the input parameters of the node here.
+class SanaModelLoader:
     @classmethod
     def INPUT_TYPES(s):
-        my_models = ["Model A", "Model B", "Model C"]
-
+        models = _list_sana_models()
         return {
-            #  If the key is "required", the value must be filled.
             "required": {
-                #  `my_models` is the list, so it will be shown as a dropdown menu in the node. ( So that user can select one of them. )
-                #  You must provide the value in the tuple format. e.g. ("value",) or (3,) or ([1, 2],) etc.
-                "model": (my_models,),
-                "device": (['cuda', 'cpu', 'auto'],),
-            },
-            #  If the key is "optional", the value is optional.
-            "optional": {
-                "compute_type": (['float32', 'float16'],),
+                #  Dropdown of diffusers folders under ComfyUI/models/diffusers.
+                "model": (models if models else ["(no diffusers models found)"],),
+                "device": (["auto", "mps", "cuda", "cpu"],),
+                "dtype": (list(DTYPE_MAP.keys()), {"default": "bfloat16"}),
             }
         }
 
-    #  Define these constants inside the node.
-    #  `RETURN_TYPES` is important, as it limits the parameter types that can be passed to the next node, in `INPUT_TYPES()` above.
-    RETURN_TYPES = ("MY_MODEL",)
-    RETURN_NAMES = ("my_model",)
-    #  `FUNCTION` is the function name that will be called in the node.
+    RETURN_TYPES = ("SANA_MODEL",)
+    RETURN_NAMES = ("sana_model",)
     FUNCTION = "load_model"
-    #  `CATEGORY` is the category name that will be used when user searches the node.
-    CATEGORY = "CustomNodesTemplate"
+    CATEGORY = "SANA"
 
-    #  In the function, use same parameter names as you specified in `INPUT_TYPES()`
-    def load_model(self,
-                   model: str,
-                   device: str,
-                   compute_type: Optional[str] = None,
-                   ) -> Tuple[CalculatorModel]:
-        calculator_model = CalculatorModel()
-        calculator_model.load_model(model, device, compute_type)
+    def load_model(self, model: str, device: str, dtype: str):
+        base_candidates = folder_paths.get_folder_paths("diffusers")
+        model_path = None
+        for base in base_candidates:
+            candidate = os.path.join(base, model)
+            if os.path.isdir(candidate):
+                model_path = candidate
+                break
+        if model_path is None:
+            raise FileNotFoundError(
+                f"Could not find diffusers model '{model}' under {base_candidates}"
+            )
 
-        #  You can use `comfy.utils.ProgressBar` to show the progress of the process.
-        #  First, initialize the total amount of the process.
-        total_steps = 5
-        comfy_pbar = ProgressBar(total_steps)
-        #  Then, update the progress.
-        for i in range(1, total_steps):
-            time.sleep(1)
-            comfy_pbar.update(i)  #  Alternatively, you can use `comfy_pbar.update_absolute(value)` to update the progress with absolute value.
-
-        #  Return the model as a tuple.
-        return (calculator_model, )
+        sana = SanaModel()
+        sana.load(model_path, device, dtype)
+        return (sana,)
 
 
-#  Second Node
-class CalculatePlus:
+class SanaGenerate:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "model": ("MY_MODEL", ),
-            },
-            #  Specify the parameters with type and default value.
-            "optional": {
-                "a": ("INT", {"default": 5}),
-                "b": ("INT", {"default": 10}),
+                "sana_model": ("SANA_MODEL",),
+                "prompt": ("STRING", {"default": "a cyberpunk cat, neon city", "multiline": True}),
+                "negative_prompt": ("STRING", {"default": "", "multiline": True}),
+                "width": ("INT", {"default": 1024, "min": 256, "max": 4096, "step": 32}),
+                "height": ("INT", {"default": 1024, "min": 256, "max": 4096, "step": 32}),
+                #  Sprint wants 1-4 steps; regular SANA ~20. Default suits Sprint.
+                "steps": ("INT", {"default": 2, "min": 1, "max": 100}),
+                "guidance_scale": ("FLOAT", {"default": 4.5, "min": 0.0, "max": 20.0, "step": 0.1}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFFFFFFFFFFFF}),
+                "batch_size": ("INT", {"default": 1, "min": 1, "max": 16}),
             }
         }
 
-    RETURN_TYPES = ("INT",)
-    RETURN_NAMES = ("plus_value",)
-    FUNCTION = "plus"
-    CATEGORY = "CustomNodesTemplate"
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    FUNCTION = "generate"
+    CATEGORY = "SANA"
 
-    def plus(self,
-             model: CalculatorModel,
-             a: Optional[int],
-             b: Optional[int],
-             ) -> Tuple[int]:
-        result = model.plus(a, b)
-        return (result, )
+    def generate(
+        self,
+        sana_model: SanaModel,
+        prompt: str,
+        negative_prompt: str,
+        width: int,
+        height: int,
+        steps: int,
+        guidance_scale: float,
+        seed: int,
+        batch_size: int,
+    ):
+        comfy_pbar = ProgressBar(steps)
 
+        def _progress(step, total):
+            comfy_pbar.update_absolute(step, total)
 
+        images = sana_model.generate(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            width=width,
+            height=height,
+            steps=steps,
+            guidance_scale=guidance_scale,
+            seed=seed,
+            num_images=batch_size,
+            progress_callback=_progress,
+        )
 
-#  Third Node
-class CalculateMinus:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "model": ("MY_MODEL", ),
-                "a": ("INT", ),
-            },
-            "optional": {
-                "b": ("INT", {"default": 10}),
-            }
-        }
-
-    RETURN_TYPES = ("INT",)
-    RETURN_NAMES = ("minus_value",)
-    FUNCTION = "minus"
-    CATEGORY = "CustomNodesTemplate"
-
-    def minus(self,
-             model: CalculatorModel,
-             a: Optional[int],
-             b: Optional[int],
-             ) -> Tuple[int]:
-        result = model.minus(a, b)
-        return (result, )
-
-
-
-#  Output Node
-class ExampleOutputNode:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "value": ("INT", ),
-            },
-        }
-
-    #  If the node is output node, set this to True.
-    OUTPUT_NODE = True
-    RETURN_TYPES = ("INT",)
-    RETURN_NAMES = ("int",)
-    FUNCTION = "result"
-    CATEGORY = "CustomNodesTemplate"
-
-    def result(self,
-               value: int,) -> Tuple[int]:
-        return (value, )
+        #  Convert PIL images -> ComfyUI IMAGE tensor: float32, NHWC, range [0, 1].
+        tensors = []
+        for img in images:
+            arr = np.array(img.convert("RGB"), dtype=np.float32) / 255.0
+            tensors.append(torch.from_numpy(arr))
+        image_batch = torch.stack(tensors, dim=0)
+        return (image_batch,)

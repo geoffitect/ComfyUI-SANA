@@ -1,89 +1,77 @@
-# ComfyUI CustomNode Template
+# ComfyUI-SANA
 
-This is the [ComfyUI](https://github.com/comfyanonymous/ComfyUI) custom node template repository that anyone can use to create their own custom nodes.
+ComfyUI nodes for the [SANA](https://github.com/NVlabs/Sana) text-to-image family,
+run through 🤗 `diffusers`. Supports both the regular **SANA** models and the
+distilled **SANA-Sprint** models (1–4 step generation).
 
-## Directory Structure
-```
-Project-Name/
-├── .github/                # GA workflow for publishing the ComfyUI registry 
-├── workflows/              # Example workflows for your custom node
-├── modules/                # Your own modules for the custom node
-├── .gitignore              # gitignore file 
-├── __init__.py             # Map your custom node display names here 
-├── nodes.py                # Your custom node classes  
-├── README.md               # README file
-├── pyproject.toml          # Metadata file for the ComfyUI registry
-└── requirements.txt        # Project dependencies 
-```
+SANA is small and fast: the 0.6B Sprint model generates a 1024×1024 image in a
+couple of steps and runs comfortably on Apple Silicon (MPS), CUDA, or CPU.
 
-## Custom Node Files
+## Nodes
 
-### [nodes.py](https://github.com/jhj0517/ComfyUI-CustomNodes-Template/tree/master/nodes.py)
-This file is where your actual custom node classes are defined. The class has specific methods that are called by the ComfyUI engine.
-There're some basic custom nodes for the example with some comments, you can modify them as you need.
-For detailed information on how to create custom nodes, please refer to the ComfyUI official documentation: 
-- https://docs.comfy.org/essentials/custom_node_walkthrough.
+| Node | Output | Description |
+| --- | --- | --- |
+| **SANA Model Loader** | `SANA_MODEL` | Loads a diffusers-format SANA folder from `ComfyUI/models/diffusers`. Auto-detects regular vs. Sprint. Pick device (`auto`/`mps`/`cuda`/`cpu`) and dtype (`bfloat16`/`float16`/`float32`). |
+| **SANA Generate** | `IMAGE` | Runs the pipeline. Prompt, negative prompt (regular only), width/height, steps, guidance scale, seed, batch size. |
 
-### [__init__.py](https://github.com/jhj0517/ComfyUI-CustomNodes-Template/tree/master/__init__.py)
-You can map your custom node display names here. It will be used when users search for your custom node in the ComfyUI.
+Suggested settings:
 
-### [pyproject.toml](https://github.com/jhj0517/ComfyUI-CustomNodes-Template/tree/master/pyproject.toml)
-This file is used to publish your custom node to the ComfyUI registry. If you want to publish your custom node to the ComfyUI registry, you need to modify this file.
+- **SANA-Sprint**: `steps` 1–4 (2 is a good default), `guidance_scale` ~4.5. The
+  Sprint scheduler is CFG-distilled, so the `negative_prompt` field is ignored.
+- **Regular SANA**: `steps` ~20, `guidance_scale` ~4.5, `negative_prompt` honored.
 
-If you wonder what ComfyUI registry is, please read:
-
-- https://docs.comfy.org/registry/overview#why-use-the-registry
-
-### [requirements.txt](https://github.com/jhj0517/ComfyUI-CustomNodes-Template/tree/master/requirements.txt)
-This file contains the dependencies needed for your custom node. `torch` is already installed in the ComfyUI, so you only need to add "extra" dependencies here.
-
-### [workflows/example-1.json](https://github.com/jhj0517/ComfyUI-CustomNodes-Template/tree/master/workflows)
-This is optional, but it is recommended to put your ComfyUI workflow json file inside your project so users can easily understand how to use your custom node.
-
-## Github Actions
-
-### [publish-comfyui-registry.yml](https://github.com/jhj0517/ComfyUI-CustomNodes-Template/tree/master/.github/workflows/publish-comfyui-registry.yml)
-When you push into the `master` branch, this workflow will be triggered and publish your custom node to the ComfyUI registry, using your [pyproject.toml](https://github.com/jhj0517/ComfyUI-CustomNodes-Template/tree/master/pyproject.toml).
-You have to register your "REGISTRY_ACCESS_TOKEN" in the Github Action Secrets which you can get from:
-- https://docs.comfy.org/registry/publishing#create-an-api-key-for-publishing
-
-After generating the repository from this template, uncomment the push to enable the workflow with auto trigger:
-
-https://github.com/jhj0517/ComfyUI-CustomNodes-Template/blob/6ae10a1d161933c5e3cff432e1c8bbc9396be954/.github/workflows/publish-comfyui-registry.yml#L4-L10
-
-## Github Issue & PR templates
-
-There are some basic templates for the Github issues & PR. You can edit them or add more to fit your project's needs.
-
-- Issue Templates:
-  1. [bug_report.md](https://github.com/jhj0517/ComfyUI-CustomNodes-Template/blob/master/.github/ISSUE_TEMPLATE/bug_report.md) : Basic bug report template
-  2. [feature_request.md](https://github.com/jhj0517/ComfyUI-CustomNodes-Template/blob/master/.github/ISSUE_TEMPLATE/feature_request.md) : Feature request template
-
-- PR Template: [pull_request_template.md](https://github.com/jhj0517/ComfyUI-CustomNodes-Template/blob/master/.github/pull_request_template.md)
-
-
-## How to Strat Using Template
-
-Click "Use this template" -> "Create a new repository", then you can create your own custom node from there.
-
-![image](https://github.com/user-attachments/assets/fab4da53-0458-4e88-adc1-5bb5d341a511)
-
-The custom node installation guide below can usually be used for any custom node, you can use it in your README by modifying the repository name and URL.
 ## Installation
 
-1. git clone repository into `ComfyUI\custom_nodes\`
-```
-git clone https://github.com/replace-this-with-your-github-repository-url.git
-```
+Clone into your `custom_nodes` directory and install requirements into the same
+Python environment ComfyUI runs in:
 
-2. Go to `ComfyUI\custom_nodes\ComfyUI-Your-CustomNode-Name` and run
-```
+```bash
+cd ComfyUI/custom_nodes
+git clone https://github.com/gtaghon/ComfyUI-SANA
+cd ComfyUI-SANA
 pip install -r requirements.txt
 ```
 
-If you are using the portable version of ComfyUI, do this:
-```
-python_embeded\python.exe -m pip install -r ComfyUI\custom_nodes\ComfyUI-Your-CustomNode-Name\requirements.txt
+Requirements: `diffusers>=0.33.0`, `transformers>=4.49.0`, `accelerate`,
+`sentencepiece`.
+
+## Models
+
+The loader lists any folder under `ComfyUI/models/diffusers` that contains a
+`model_index.json` (the diffusers pipeline manifest).
+
+### Using models already in your Hugging Face cache
+
+If you already have a SANA diffusers model cached (e.g. from a prior
+`diffusers` download), symlink it into ComfyUI instead of re-downloading:
+
+```bash
+# Find the snapshot directory in the HF cache, then link it in:
+SNAP=~/.cache/huggingface/hub/models--Efficient-Large-Model--Sana_Sprint_0.6B_1024px_diffusers/snapshots/*
+ln -s $SNAP ~/ComfyUI/models/diffusers/Sana_Sprint_0.6B_1024px_diffusers
 ```
 
+It then appears in the loader's dropdown.
 
+> **Note on model format:** only **diffusers-format** repos work (those with a
+> `model_index.json` plus `transformer/`, `text_encoder/`, `vae/`, etc.). The
+> original SANA `.pth` checkpoints (e.g. `Sana_600M_512px_MultiLing.pth`) are
+> *not* diffusers-format and won't load directly — use the corresponding
+> `..._diffusers` repo from Hugging Face.
+
+### Downloading
+
+To fetch one fresh, download any SANA diffusers repo into
+`ComfyUI/models/diffusers/<name>`, e.g.
+`Efficient-Large-Model/Sana_Sprint_0.6B_1024px_diffusers` or
+`Efficient-Large-Model/Sana_600M_512px_diffusers`.
+
+## Example workflow
+
+See [`workflows/sana-sprint-txt2img.json`](workflows/sana-sprint-txt2img.json):
+**SANA Model Loader → SANA Generate → Save Image**.
+
+## License
+
+The node code is provided as-is. SANA model weights are subject to their own
+license from NVIDIA / Efficient-Large-Model.

@@ -1,3 +1,4 @@
-#  Update your requirements.
-#  numpy==1.18.1
-
+diffusers>=0.33.0
+transformers>=4.49.0
+accelerate
+sentencepiece

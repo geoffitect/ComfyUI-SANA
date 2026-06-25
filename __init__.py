@@ -1,13 +1,17 @@
-from .nodes import *
+from .nodes import SanaModelLoader, SanaGenerate
 
 
-#  Map all your custom nodes classes with the names that will be displayed in the UI.
+#  Map node classes to the unique keys ComfyUI stores in workflows.
 NODE_CLASS_MAPPINGS = {
-    "(Down)Load My Model": MyModelLoader,
-    "Calculate Plus": CalculatePlus,
-    "Calculate Minus": CalculateMinus,
-    "Example Output Node": ExampleOutputNode,
+    "SanaModelLoader": SanaModelLoader,
+    "SanaGenerate": SanaGenerate,
+}
+
+#  Friendly names shown in the node search / title bar.
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "SanaModelLoader": "SANA Model Loader",
+    "SanaGenerate": "SANA Generate",
 }
 
 
-__all__ = ['NODE_CLASS_MAPPINGS']
+__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]

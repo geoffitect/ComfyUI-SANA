@@ -1,0 +1,113 @@
+{
+  "last_node_id": 4,
+  "last_link_id": 2,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "SanaModelLoader",
+      "pos": [200, 200],
+      "size": [340, 106],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "sana_model",
+          "type": "SANA_MODEL",
+          "links": [1],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SanaModelLoader"
+      },
+      "widgets_values": [
+        "Sana_Sprint_0.6B_1024px_diffusers",
+        "auto",
+        "bfloat16"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "SanaGenerate",
+      "pos": [600, 200],
+      "size": [380, 320],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "sana_model",
+          "type": "SANA_MODEL",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [2],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SanaGenerate"
+      },
+      "widgets_values": [
+        "a red panda astronaut floating in space, studio lighting, highly detailed",
+        "",
+        1024,
+        1024,
+        2,
+        4.5,
+        42,
+        1
+      ]
+    },
+    {
+      "id": 3,
+      "type": "SaveImage",
+      "pos": [1040, 200],
+      "size": [400, 450],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 2
+        }
+      ],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": ["SANA"]
+    },
+    {
+      "id": 4,
+      "type": "Note",
+      "pos": [200, 360],
+      "size": [340, 130],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "SANA-Sprint: use steps 1-4 (2 is a good default).\nFor regular SANA use steps ~20 and a negative_prompt.\nguidance_scale 4.5 works well for both."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [1, 1, 0, 2, 0, "SANA_MODEL"],
+    [2, 2, 0, 3, 0, "IMAGE"]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}
